@@ -53,11 +53,19 @@ def tokenize_and_clean(string, tokenizer):
 
     deleted_words = ['br', 'href', '\\', 'li', 'div', 'br', 'span', 'p']
 
-    # tokenize string, filter for stopwords and return
-    if args.stopwords is False:
-        return [tok.text for tok in tokenizer(string) if tok.is_stop is False]
 
-    return [tok.text for tok in tokenizer(string) if tok.text not in deleted_words]
+    querywords = string.split()
+
+    resultwords = [word for word in querywords if word.lower() not in deleted_words]
+    string = ' '.join(resultwords)
+
+    # tokenize string, filter for stopwords and return
+    encoded_sent = tokenizer.encode(
+        string,  # Sentence to encode.
+        add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
+    )
+
+    return encoded_sent
 
 
 def save_obj(obj, name ):
@@ -69,7 +77,7 @@ def load_obj(name ):
         return pickle.load(f)
 
 
-def get_sequences(posts, tokenizer, vocab):
+def get_sequences(posts, tokenizer):
     '''
     turns words in pieces of text into padded
     sequences of word indices correspodning to
@@ -84,24 +92,27 @@ def get_sequences(posts, tokenizer, vocab):
     post_lengths = [len(text) for text in post_tkns]
 
     # create an empty matrix with padding tokens
-    pad_token = vocab['<pad>']
-    if max(post_lengths) <=500:
-        max_post_length = max(post_lengths)
+    if len(post_lengths) == 0:
+        padded_posts = np.zeros((1, 512), dtype=int)
+        padded_posts[0,0] = 101
+        padded_posts[0,511] = 102
     else:
-         max_post_length = 500
-    thread_length = len(posts)
-    padded_posts = np.ones((thread_length, max_post_length), dtype=int) * pad_token
-
-    # copy over the actual sequences
-    for i, post_length in enumerate(post_lengths):
-        if post_length == 0:
-            continue
+        if max(post_lengths) <=512:
+            max_post_length = max(post_lengths)
         else:
-            sequence = np.array([vocab[w] if w in vocab else vocab['<unk>'] for w in post_tkns[i]])
-            if post_length <= max_post_length:
-                padded_posts[i, -post_length:] = sequence[-post_length:]
+             max_post_length = 512
+        thread_length = len(posts)
+        padded_posts = np.zeros((thread_length, max_post_length), dtype=int)
+
+        # copy over the actual sequences
+        for i, post_length in enumerate(post_lengths):
+            if post_length == 0:
+                continue
             else:
-                padded_posts[i, -max_post_length:] = sequence[-max_post_length:]
+                if post_length <= max_post_length:
+                    padded_posts[i, :post_length] = np.array(post_tkns[i])
+                else:
+                    padded_posts[i, :] = np.array(post_tkns[i][:max_post_length-1] + [102])
 
     return padded_posts
 

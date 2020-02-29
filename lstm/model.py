@@ -42,18 +42,10 @@ class Model(nn.Module):
     def __init__(self, args):
         super(Model, self).__init__()
         self.args = args
-        V = args['embed_num']
-        D = args['embed_dim']
-        C = args['class_num']
-        Ci = 1
+
         self.hidden = args['hidden']
 
-        self.embed = nn.Embedding(V, D)
-        self.embed.weight = nn.Parameter(args['vec'])
-        self.embed.weight.requires_grad = global_args.update_emb  # Allow to update the embedding vectors
-        # hidden size is the size of the output tensor
-        self.lstm1 = nn.LSTM(input_size=D, hidden_size=self.hidden, num_layers=2, dropout=0.2, bidirectional=False)
-
+        self.fc = nn.Linear(768, self.hidden)
         # Compute attention, the output is tensors representing contexts
         self.attn = Attn(self.hidden)
         # input is each context
@@ -66,11 +58,7 @@ class Model(nn.Module):
     #             self.linear.weight.copy_(your_new_weights)
 
     def forward(self, x, extra):
-        x = self.embed(x)  # (N,W,D) N: number of posts W: number of words D: embedding dimension
-        x = Variable(x)  # Not necessary
-        x = x.permute(1, 0, 2)  # (W,N,D)
-        x, _ = self.lstm1(x)  # (W,N,H) the output of last layer in each t
-        post_vectors = x[-1]  # (N,H) the last output of each post
+        post_vectors = torch.tanh(self.fc(x))
         post_vectors = post_vectors.unsqueeze(1)  # (N,1,H)
 
         context_representations, _ = self.lstm2(post_vectors)  # (N,1,H) different context representation
