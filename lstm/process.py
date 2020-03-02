@@ -95,7 +95,7 @@ def get_sequences(posts, tokenizer):
     if len(post_lengths) == 0:
         padded_posts = np.zeros((1, 512), dtype=int)
         padded_posts[0,0] = 101
-        padded_posts[0,511] = 102
+        padded_posts[0,1] = 102
     else:
         if max(post_lengths) <=512:
             max_post_length = max(post_lengths)
@@ -107,7 +107,8 @@ def get_sequences(posts, tokenizer):
         # copy over the actual sequences
         for i, post_length in enumerate(post_lengths):
             if post_length == 0:
-                continue
+                padded_posts[i,0]=101
+                padded_posts[i,1]=102
             else:
                 if post_length <= max_post_length:
                     padded_posts[i, :post_length] = np.array(post_tkns[i])
@@ -123,22 +124,23 @@ def generate(thread_data_useful, post_data, comment_data):
     for idx in thread_data_useful['id'].values:
         thread = thread_data_useful.loc[thread_data_useful['id'] == idx]
         if thread['instructor_replied'].values == 0:
-            posts = post_data.loc[post_data['thread_id'] == idx].sort_values(by=['post_time'])[
+            posts = post_data.loc[post_data['thread_id'] == idx][['post_time', 'post_text']]
+            comments = comment_data.loc[comment_data['thread_id'] == idx][['post_time', 'comment_text']]
+            p_and_c = pd.concat([posts, comments.rename(columns={'comment_text':'post_text'})], axis=0, ignore_index=True).sort_values(by=['post_time'])[
                 'post_text'].values.tolist()
-            comments = comment_data.loc[comment_data['thread_id'] == idx].sort_values(by=['post_time'])[
-                'comment_text'].values.tolist()
+
         else:
             posts = post_data.loc[post_data['thread_id'] == idx]
             comments = comment_data.loc[comment_data['thread_id'] == idx]
             time_list = list(posts.loc[posts['forum_title'] != 'Student']['post_time']) + list(
                 comments.loc[comments['forum_title'] != 'Student']['post_time'])
             time_list.sort()
-            posts = posts.loc[posts['post_time'] < time_list[0]].sort_values(by=['post_time'])[
+            posts = posts.loc[posts['post_time'] < time_list[0]][['post_time', 'post_text']]
+            comments = comments.loc[comments['post_time'] < time_list[0]][['post_time', 'comment_text']]
+            p_and_c = pd.concat([posts, comments.rename(columns={'comment_text': 'post_text'})], axis=0,
+                                ignore_index=True).sort_values(by=['post_time'])[
                 'post_text'].values.tolist()
-            comments = comments.loc[comments['post_time'] < time_list[0]].sort_values(by=['post_time'])[
-                'comment_text'].values.tolist()
-
-        threads.append(posts + comments)
+        threads.append(p_and_c)
 
     labels = thread_data_useful['instructor_replied'].values.tolist()
 

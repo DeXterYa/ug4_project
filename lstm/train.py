@@ -128,6 +128,10 @@ class_weight_dict = { 0: 1.0,
 class_weights_tensor = torch.FloatTensor([class_weight_dict[1]]).cuda()
 print(class_weights_tensor)
 
+# save count for cuda problem
+num_cudatrain = 0
+num_cudaval = 0
+
 # Evaluation
 criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights_tensor)
 def evaluation():
@@ -135,6 +139,7 @@ def evaluation():
     y_outputs = []
     y_true = []
     loss_items = []
+    num_cuda = 0
     for thread_idx in range(len(threads_valid)):
 
         original_thread_length = len(threads_valid[thread_idx])
@@ -146,8 +151,25 @@ def evaluation():
 
         inp = Variable(word_idxs_tensor, requires_grad=False).cuda()
 
+        attention_masks_valid_thread = torch.tensor(attention_masks_valid[thread_idx]).cuda()
+
         try:
-            bert_output = bert_model(inp)[0][:, 0, :]
+            # times = inp.size(0) // 10
+            # remainder = inp.size(0) % 10
+            # count = 0
+            # bert_output = torch.zeros([inp.size(0), 768]).detach().cuda()
+            # while count < times:
+            #     bert_output_temp = bert_model(inp[10 * count:10 * (count + 1)],
+            #                                   attention_mask=attention_masks_valid_thread[
+            #                                                  10 * count:10 * (count + 1)])[0][:, 0, :]
+            #     bert_output[10 * count:10 * (count + 1)] = bert_output_temp
+            #     del bert_output_temp
+            #     torch.cuda.empty_cache()
+            #     count += 1
+
+            bert_output = bert_model(inp, attention_mask=attention_masks_valid_thread)[0][:, 0, :]
+
+
 
             # Forward pass
             output = lstm(bert_output, X_valid[thread_idx])
@@ -167,16 +189,18 @@ def evaluation():
 
             y_preds.append(prediction)
             y_true.append(labels_valid[thread_idx])
-            del bert_output, output, loss, inp, target
+            del bert_output, output, loss, inp, target, attention_masks_valid_thread
+
         except:
             print('cuda problem in evaluation')
-            del inp
+            num_cuda += 1
+            del inp, attention_masks_valid_thread
         torch.cuda.empty_cache()
 
     prec, recall, fscore, _ = precision_recall_fscore_support(y_true, y_preds, average='binary')
     loss = (sum(loss_items)/len(loss_items))
     print('Loss, Precision, Recall, F-score', loss, prec, recall, fscore)
-    return loss, prec, recall, fscore
+    return loss, prec, recall, fscore, num_cuda
 
 
 for param in bert_model.parameters():
@@ -195,6 +219,7 @@ best_loss = 0
 for epoch in range(1, num_epochs + 1):
     loss_items = []
     for thread_idx in range(len(X_train)):
+
         lstm.train()
         targets = [y_train[thread_idx]]
         targets_tensor = torch.FloatTensor(targets).view(1, -1)
@@ -210,33 +235,48 @@ for epoch in range(1, num_epochs + 1):
 
         word_idxs_tensor = torch.LongTensor(word_idxs)
         inp = Variable(word_idxs_tensor, requires_grad=False).cuda()
+        attention_masks_train_thread = torch.tensor(attention_masks_train[thread_idx]).cuda()
 
         try:
-            bert_output = bert_model(inp)[0][:,0,:]
+            # times = inp.size(0)//10
+            # remainder = inp.size(0)%10
+            # count = 0
+            # bert_output = torch.zeros([inp.size(0), 768]).detach().cuda()
+            # while count < times:
+            #     bert_output_temp = bert_model(inp[10*count:10*(count+1)], attention_mask=attention_masks_train_thread[10*count:10*(count+1)])[0][:,0,:]
+            #     bert_output[10*count:10*(count+1)]= bert_output_temp
+            #     del bert_output_temp
+            #     torch.cuda.empty_cache()
+            #     count += 1
+
+            bert_output = bert_model(inp, attention_mask=attention_masks_train_thread)[0][:,0,:]
+
+
 
             # Forward pass
             output = lstm(bert_output, X_train[thread_idx])
 
             loss = criterion(output, target)
 
-            #         loss = F.cross_entropy(logit, target, size_average=False)
 
-            # Zero the gradients before running the backward pass.
             optimizer.zero_grad()
 
             loss.backward()
             optimizer.step()
             loss_items.append(loss.item())
-            del bert_output, output, loss, inp, target
+            del bert_output, output, loss, inp, target, attention_masks_train_thread
         except:
             print("cuda problem")
-            del inp, target
+            num_cudatrain += 1
+            del inp, target, attention_masks_train_thread
 
         torch.cuda.empty_cache()
 
     print("epoch:", epoch, "  loss:", sum(loss_items)/len(loss_items))
     lstm.eval()
-    loss_val, prec, recall, fscore = evaluation()
+    loss_val, prec, recall, fscore, problem = evaluation()
+
+    num_cudaval += problem
     if fscore > best_performance:
         best_performance = fscore
         best_epoch, best_loss, best_prec, best_recall, best_fscore = epoch, loss_val, prec, recall, fscore
@@ -254,18 +294,18 @@ except IOError:
     flag = 1
 with open('/home/dexter/ug4_project/lstm/results/'+ file_name + '.csv', mode='a') as csv_file:
     fieldnames = ['dataset_name', 'seed', 'num_train', 'num_valid', 'best_epoch', 'loss', 'best_prec', 'best_recall',
-                  'best_fscore']
+                  'best_fscore', 'cudatrain', 'cudaval']
     if flag == 1:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerow({'dataset_name': args.dataset_name, 'seed': args.seed, 'num_train': num_train,
                          'num_valid': (len(threads) - num_tv),
                          'best_epoch': best_epoch, 'loss': best_loss, 'best_prec': best_prec,
-                         'best_recall': best_recall, 'best_fscore': best_fscore})
+                         'best_recall': best_recall, 'best_fscore': best_fscore, 'cudatrain':num_cudatrain, 'cudaval':num_cudaval})
     else:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writerow({'dataset_name': args.dataset_name, 'seed': args.seed, 'num_train': num_train, 'num_valid':(len(threads) - num_tv),
-                     'best_epoch': best_epoch, 'loss': best_loss, 'best_prec': best_prec, 'best_recall': best_recall, 'best_fscore': best_fscore})
+                     'best_epoch': best_epoch, 'loss': best_loss, 'best_prec': best_prec, 'best_recall': best_recall, 'best_fscore': best_fscore, 'cudatrain':num_cudatrain, 'cudaval':num_cudaval})
 
 
 currentDT = datetime.datetime.now()
