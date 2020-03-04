@@ -50,6 +50,7 @@ class Model(nn.Module):
 
         self.embed = nn.Embedding(V, D)
         self.embed.weight = nn.Parameter(args['vec'])
+        print('Allow updating embedding:',global_args.update_emb)
         self.embed.weight.requires_grad = global_args.update_emb  # Allow to update the embedding vectors
         # hidden size is the size of the output tensor
         self.lstm1 = nn.LSTM(input_size=D, hidden_size=self.hidden, num_layers=2, dropout=0.2, bidirectional=False)
