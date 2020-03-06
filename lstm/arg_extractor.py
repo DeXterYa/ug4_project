@@ -39,6 +39,8 @@ def get_args():
     parser.add_argument('--stopwords', nargs="?", type=str2bool, default=True,
                         help='stop words')
 
+    parser.add_argument('--result_name', nargs="?", type=str,
+                        help='Experiment name - to be used for building the experiment folder')
     parser.add_argument('--update_emb', nargs="?", type=str2bool, default=True,
                         help='updating embedding flag')
     args = parser.parse_args()

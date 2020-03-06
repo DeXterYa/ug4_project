@@ -1,17 +1,18 @@
 import csv
+import os
 from arg_extractor import get_args
 from torch.autograd import Variable
 from sklearn.metrics import precision_recall_fscore_support
 from model import Model
 from numpy.random import default_rng
 from gensim.models import KeyedVectors
-from process import get_sequences, load_obj
+from process import get_sequences, save_statistics
 from data_provider import data_provider
 import numpy as np
 import torch
 from torch import nn
 from transformers import DistilBertModel, DistilBertTokenizer,DistilBertConfig
-import logging
+
 torch.cuda.empty_cache()
 args = get_args()
 seed = args.seed
@@ -22,7 +23,7 @@ import datetime
 
 currentDT = datetime.datetime.now()
 print(str(currentDT))
-logging.getLogger("pytorch_transformers.tokenization_utils").setLevel(logging.ERROR)
+
 
 
 if torch.cuda.is_available():
@@ -210,6 +211,14 @@ bert_model.cuda()
 
 # Train
 
+records = { "curr_epoch": [], "train_loss": [], "val_loss": [], "prec": [], "recall": [],"fscore": []}
+
+experiment_logs = './logs/edubertpctime/'
+if not os.path.exists(experiment_logs):
+    if not os.path.exists('logs'):
+        os.mkdir('logs')
+    os.mkdir(experiment_logs)
+
 best_performance = 0.0
 best_prec = 0.0
 best_recall = 0.0
@@ -273,9 +282,19 @@ for epoch in range(1, num_epochs + 1):
         torch.cuda.empty_cache()
 
     print("epoch:", epoch, "  loss:", sum(loss_items)/len(loss_items))
+    records["curr_epoch"].append(epoch)
+    records["train_loss"].append(sum(loss_items)/len(loss_items))
     lstm.eval()
     loss_val, prec, recall, fscore, problem = evaluation()
-
+    records["val_loss"].append(loss_val)
+    records["prec"].append(prec)
+    records["recall"].append(recall)
+    records["fscore"].append(fscore)
+    if epoch == 1:
+        save_statistics(experiment_log_dir='./logs/edubertpctime/', filename=args.dataset_name+"_"+str(args.seed)+".csv", stats_dict=records, current_epoch=epoch, continue_from_mode=False)
+    else:
+        save_statistics(experiment_log_dir='./logs/edubertpctime/', filename=args.dataset_name + "_" + str(args.seed) + ".csv",
+                        stats_dict=records, current_epoch=epoch, continue_from_mode=True)
     num_cudaval += problem
     if fscore > best_performance:
         best_performance = fscore
@@ -285,14 +304,14 @@ for epoch in range(1, num_epochs + 1):
 
 print(best_prec, best_recall, best_fscore)
 
-file_name = args.experiment_name
+file_name = args.result_name
 flag = 0
 try:
-    f = open('/home/dexter/ug4_project/lstm/results/'+ file_name + '.csv')
+    f = open('./results/'+ file_name + '.csv')
     # Do something with the file
 except IOError:
     flag = 1
-with open('/home/dexter/ug4_project/lstm/results/'+ file_name + '.csv', mode='a') as csv_file:
+with open('./results/'+ file_name + '.csv', mode='a') as csv_file:
     fieldnames = ['dataset_name', 'seed', 'num_train', 'num_valid', 'best_epoch', 'loss', 'best_prec', 'best_recall',
                   'best_fscore', 'cudatrain', 'cudaval']
     if flag == 1:

@@ -1,7 +1,9 @@
 import re
-import pickle
+# import pickle
 import pandas as pd
+import csv
 import numpy as np
+import os
 from arg_extractor import get_args
 args = get_args()
 def tokenize_and_clean(string, tokenizer):
@@ -68,13 +70,13 @@ def tokenize_and_clean(string, tokenizer):
     return encoded_sent
 
 
-def save_obj(obj, name ):
-    with open('obj/'+ name + '.pkl', 'wb') as f:
-        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
-
-def load_obj(name ):
-    with open( name + '.pkl', 'rb') as f:
-        return pickle.load(f)
+# def save_obj(obj, name ):
+#     with open('obj/'+ name + '.pkl', 'wb') as f:
+#         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+#
+# def load_obj(name ):
+#     with open( name + '.pkl', 'rb') as f:
+#         return pickle.load(f)
 
 
 def get_sequences(posts, tokenizer):
@@ -374,3 +376,27 @@ def clean(string):
     string = string.strip().lower()
 
     return string
+
+def save_statistics(experiment_log_dir, filename, stats_dict, current_epoch, continue_from_mode=False):
+    """
+    Saves the statistics in stats dict into a csv file. Using the keys as the header entries and the values as the
+    columns of a particular header entry
+    :param experiment_log_dir: the log folder dir filepath
+    :param filename: the name of the csv file
+    :param stats_dict: the stats dict containing the data to be saved
+    :param current_epoch: the number of epochs since commencement of the current training session (i.e. if the experiment continued from 100 and this is epoch 105, then pass relative distance of 5.)
+    :param save_full_dict: whether to save the full dict as is overriding any previous entries (might be useful if we want to overwrite a file)
+    :return: The filepath to the summary file
+    """
+    summary_filename = os.path.join(experiment_log_dir, filename)
+    mode = 'a' if continue_from_mode else 'w'
+    with open(summary_filename, mode) as f:
+        writer = csv.writer(f)
+        if not continue_from_mode:
+            writer.writerow(list(stats_dict.keys()))
+
+
+        row_to_add = [value[current_epoch-1] for value in list(stats_dict.values())]
+        writer.writerow(row_to_add)
+
+    return summary_filename
