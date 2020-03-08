@@ -5,7 +5,6 @@ from torch.autograd import Variable
 from sklearn.metrics import precision_recall_fscore_support
 from model import Model
 from numpy.random import default_rng
-from gensim.models import KeyedVectors
 from process import get_sequences, save_statistics
 from data_provider import data_provider
 import numpy as np
@@ -32,10 +31,10 @@ if torch.cuda.is_available():
 if args.update_emb is False:
     print("Do not update embedding vectors")
 
-config = DistilBertConfig.from_json_file('/home/dexter/Downloads/distiledubert/config.json')
-bert_model = DistilBertModel.from_pretrained('/home/dexter/Downloads/distiledubert/pytorch_model.bin', config=config)
+config = DistilBertConfig.from_json_file('./distiledubert/config.json')
+bert_model = DistilBertModel.from_pretrained('./distiledubert/pytorch_model.bin', config=config)
 
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased')
+tokenizer = DistilBertTokenizer.from_pretrained('./distiledubert/vocab.txt')
 
 
 
