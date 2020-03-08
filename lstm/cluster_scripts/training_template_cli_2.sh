@@ -34,7 +34,7 @@ export DATASET_DIR=${TMP}/datasets/
 
 
 source /home/${STUDENT_ID}/miniconda3/bin/activate mlp
-cd ..
+
 
 python train.py --dataset_name "cli" --seed 2 --num_epochs 50 --result_name "edudistilbert_pctime_withattn" \
                 --experiment_name "cli_2"
