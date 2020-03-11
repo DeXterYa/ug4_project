@@ -356,10 +356,6 @@ for epoch_i in range(0, epochs):
         # Report the final accuracy for this validation run.
     print("  Accuracy: {0:.2f}".format(eval_accuracy / nb_eval_steps))
     print("  Validation took: {:}".format(format_time(time.time() - t0)))
-    print('l',len(labels_list))
-    print('lo', len(logits_list))
-    print(labels_list)
-    print(logits_list)
     prec, recall, fscore, _ = precision_recall_fscore_support(labels_list, logits_list, average='binary')
 
     records["curr_epoch"].append(epoch_i)
