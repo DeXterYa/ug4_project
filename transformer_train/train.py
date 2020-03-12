@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
 import torch
+import torch.nn as nn
 from sklearn.model_selection import train_test_split
 import re
 from transformers import DistilBertForSequenceClassification, AdamW
-from transformers import DistilBertTokenizer
+from transformers import DistilBertTokenizer, DistilBertModel, DistilBertPreTrainedModel
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from transformers import get_linear_schedule_with_warmup
 import time
@@ -13,24 +14,30 @@ import os
 from helper import format_time, flat_accuracy, pad_features, save_statistics
 from arg_extractor import get_args
 from sklearn.metrics import precision_recall_fscore_support
+
 args = get_args()
 
 main_data = pd.read_excel('../lstm/stanfordMOOCForumPostsSet.xlsx')
 
+# main_data = pd.read_excel('/home/dexter/ug4_project/data/stanfordMOOCForumPostsSet.xlsx')
 sentences = main_data['Text'].tolist()
 if args.target == "sentiment":
-    sentiment = main_data['Sentiment(1-7)']
+    sentiment = main_data['Sentiment(1-7)'].tolist()
 elif args.target == "confusion":
-    sentiment = main_data['Confusion(1-7)']
+    sentiment = main_data['Confusion(1-7)'].tolist()
 elif args.target == "urgency":
     print("urgency")
-    sentiment = main_data['Urgency(1-7)']
-sentiment = sentiment.tolist()
+    sentiment = main_data['Urgency(1-7)'].tolist()
+elif args.target == "combination":
+    sentiment = main_data['Sentiment(1-7)'].tolist()
+    confusion = main_data['Confusion(1-7)'].tolist()
+    urgency = main_data['Urgency(1-7)'].tolist()
+
 # Load the BERT tokenizer.
 print('Loading BERT tokenizer...')
 
-
 tokenizer = DistilBertTokenizer.from_pretrained('../lstm/distiledubert/vocab.txt')
+# tokenizer = DistilBertTokenizer.from_pretrained('/home/dexter/Downloads/distiledubert/vocab.txt')
 
 # tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased', do_lower_case=True)
 
@@ -68,10 +75,8 @@ print('Token IDs:', input_ids[0])
 for idx in deleted_list[::-1]:
     del input_ids[idx]
     del sentiment[idx]
-
-
-
-
+    del confusion[idx]
+    del urgency[idx]
 
 input_ids = pad_features(input_ids, 512)
 
@@ -88,22 +93,28 @@ for sent in input_ids:
     # Store the attention mask for this sentence.
     attention_masks.append(att_mask)
 
-labels = [ 0 if l <= 4 else 1 for l in sentiment]
-
-
+labels_s = [0 if l <= 4 else 1 for l in sentiment]
+labels_c = [0 if l <= 4 else 1 for l in confusion]
+labels_u = [0 if l <= 4 else 1 for l in urgency]
 
 # Use 90% for training and 10% for validation.
-train_inputs, validation_inputs, train_labels, validation_labels = train_test_split(input_ids, labels,
-                                                            random_state=2020, test_size=0.1)
+train_inputs, validation_inputs, train_labels_s, validation_labels_s, train_labels_c, validation_labels_c, train_labels_u, validation_labels_u, train_masks, validation_masks = train_test_split(
+    input_ids, labels_s, labels_c, labels_u, attention_masks,
+    random_state=2020, test_size=0.1)
 # Do the same for the masks.
-train_masks, validation_masks, _, _ = train_test_split(attention_masks, labels,
-                                             random_state=2020, test_size=0.1)
+
 
 train_inputs = torch.tensor(train_inputs)
 validation_inputs = torch.tensor(validation_inputs)
 
-train_labels = torch.tensor(train_labels).type(torch.cuda.LongTensor)
-validation_labels = torch.tensor(validation_labels).type(torch.cuda.LongTensor)
+train_labels_s = torch.tensor(train_labels_s).type(torch.cuda.LongTensor)
+validation_labels_s = torch.tensor(validation_labels_s).type(torch.cuda.LongTensor)
+
+train_labels_u = torch.tensor(train_labels_u).type(torch.cuda.LongTensor)
+validation_labels_u = torch.tensor(validation_labels_u).type(torch.cuda.LongTensor)
+
+train_labels_c = torch.tensor(train_labels_c).type(torch.cuda.LongTensor)
+validation_labels_c = torch.tensor(validation_labels_c).type(torch.cuda.LongTensor)
 
 train_masks = torch.tensor(train_masks)
 validation_masks = torch.tensor(validation_masks)
@@ -111,19 +122,85 @@ validation_masks = torch.tensor(validation_masks)
 batch_size = args.batch_size
 
 # Create the DataLoader for our training set.
-train_data = TensorDataset(train_inputs, train_masks, train_labels)
+train_data = TensorDataset(train_inputs, train_masks, train_labels_s, train_labels_c, train_labels_u)
 train_sampler = RandomSampler(train_data)
 train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=batch_size)
 
 # Create the DataLoader for our validation set.
-validation_data = TensorDataset(validation_inputs, validation_masks, validation_labels)
+validation_data = TensorDataset(validation_inputs, validation_masks, validation_labels_s, validation_labels_c, validation_labels_u)
 validation_sampler = SequentialSampler(validation_data)
 validation_dataloader = DataLoader(validation_data, sampler=validation_sampler, batch_size=batch_size)
 
 torch.cuda.empty_cache()
+
+
 # config = DistilBertConfig.from_json_file('./distiledubert/config.json')
 # bert_model = DistilBertModel.from_pretrained('./distiledubert/pytorch_model.bin', config=config)
-model = DistilBertForSequenceClassification.from_pretrained(
+class Model(DistilBertPreTrainedModel):
+    def __init__(self, config):
+        super(Model, self).__init__(config)
+        self.num_labels = config.num_labels
+        self.distilbert = DistilBertModel(config)
+        # self.distilbert = DistilBertModel.from_pretrained(
+        #     "/home/dexter/Downloads/distiledubert")
+        self.pre_classifier_1 = nn.Linear(config.dim, config.dim)
+        self.classifier_1 = nn.Linear(config.dim, config.num_labels)
+        self.pre_classifier_2 = nn.Linear(config.dim, config.dim)
+        self.classifier_2 = nn.Linear(config.dim, config.num_labels)
+        self.pre_classifier_3 = nn.Linear(config.dim, config.dim)
+        self.classifier_3 = nn.Linear(config.dim, config.num_labels)
+        self.dropout = nn.Dropout(config.seq_classif_dropout)
+
+        self.init_weights()
+
+
+    def forward(self, input_ids=None, attention_mask=None, head_mask=None, inputs_embeds=None, labels_s=None,
+                labels_c=None, labels_u=None):
+        distilbert_output = self.distilbert(
+            input_ids=input_ids, attention_mask=attention_mask, head_mask=head_mask, inputs_embeds=inputs_embeds
+        )
+        hidden_state = distilbert_output[0]  # (bs, seq_len, dim)
+        pooled_output = hidden_state[:, 0]  # (bs, dim)
+
+        pooled_output_1 = self.pre_classifier_1(pooled_output)  # (bs, dim)
+        pooled_output_1 = nn.ReLU()(pooled_output_1)  # (bs, dim)
+        pooled_output_1 = self.dropout(pooled_output_1)  # (bs, dim)
+        logits_1 = self.classifier_1(pooled_output_1)  # (bs, dim)
+        loss_fct = nn.CrossEntropyLoss()
+
+
+        pooled_output_2 = self.pre_classifier_2(pooled_output)  # (bs, dim)
+        pooled_output_2 = nn.ReLU()(pooled_output_2)  # (bs, dim)
+        pooled_output_2 = self.dropout(pooled_output_2)  # (bs, dim)
+        logits_2 = self.classifier_2(pooled_output_2)  # (bs, dim)
+
+
+        pooled_output_3 = self.pre_classifier_3(pooled_output)  # (bs, dim)
+        pooled_output_3 = nn.ReLU()(pooled_output_3)  # (bs, dim)
+        pooled_output_3 = self.dropout(pooled_output_3)  # (bs, dim)
+        logits_3 = self.classifier_3(pooled_output_3)  # (bs, dim)
+
+        outputs = (logits_1,logits_2,logits_3)
+
+
+        if labels_s is not None:
+            loss_1 = loss_fct(logits_1.view(-1, 2), labels_s.view(-1))
+            loss_2 = loss_fct(logits_2.view(-1, 2), labels_c.view(-1))
+            loss_3 = loss_fct(logits_3.view(-1, 2), labels_u.view(-1))
+
+            outputs = (loss_1 + loss_2 + loss_3,) + outputs
+
+        return outputs
+
+
+# model = DistilBertForSequenceClassification.from_pretrained(
+#     "../lstm/distiledubert", # Use the 12-layer BERT model, with an uncased vocab.
+#     num_labels = 2, # The number of output labels--2 for binary classification.
+#                     # You can increase this for multi-class tasks.
+#     output_attentions = False, # Whether the model returns attentions weights.
+#     output_hidden_states = False, # Whether the model returns all hidden-states.
+# )
+model = Model.from_pretrained(
     "../lstm/distiledubert", # Use the 12-layer BERT model, with an uncased vocab.
     num_labels = 2, # The number of output labels--2 for binary classification.
                     # You can increase this for multi-class tasks.
@@ -135,10 +212,9 @@ model = DistilBertForSequenceClassification.from_pretrained(
 model.cuda()
 
 optimizer = AdamW(model.parameters(),
-                  lr = 2e-5, # args.learning_rate - default is 5e-5, our notebook had 2e-5
-                  eps = 1e-8 # args.adam_epsilon  - default is 1e-8.
-                )
-
+                  lr=2e-5,  # args.learning_rate - default is 5e-5, our notebook had 2e-5
+                  eps=1e-8  # args.adam_epsilon  - default is 1e-8.
+                  )
 
 # Number of training epochs (authors recommend between 2 and 4)
 epochs = args.num_epochs
@@ -148,10 +224,8 @@ total_steps = len(train_dataloader) * epochs
 
 # Create the learning rate scheduler.
 scheduler = get_linear_schedule_with_warmup(optimizer,
-                                            num_warmup_steps = 0, # Default value in run_glue.py
-                                            num_training_steps = total_steps)
-
-
+                                            num_warmup_steps=0,  # Default value in run_glue.py
+                                            num_training_steps=total_steps)
 
 device = torch.device("cuda")
 
@@ -170,19 +244,18 @@ torch.cuda.manual_seed_all(seed_val)
 # Store the average loss after each epoch so we can plot them.
 loss_values = []
 
-
-records = { "curr_epoch": [], "train_loss": [], "val_acc": [],"prec": [], "recall": [], "fscore": []}
-experiment_logs = './logs/'+args.experiment_name+'/'
+records = {"curr_epoch": [], "train_loss": [], "val_acc_s": [],"val_acc_c": [],"val_acc_u": [], "prec": [], "recall": [], "fscore": []}
+experiment_logs = './logs/' + args.experiment_name + '/'
 if not os.path.exists('logs'):
     try:
         os.mkdir('logs')
     except:
         print('logs exist')
-    if not os.path.exists(experiment_logs):
-        try:
-            os.mkdir(experiment_logs)
-        except:
-            print('experiment directory exists')
+if not os.path.exists(experiment_logs):
+    try:
+        os.mkdir(experiment_logs)
+    except:
+        print('experiment directory exists')
 
 fscore_check = 0
 # For each epoch...
@@ -232,7 +305,9 @@ for epoch_i in range(0, epochs):
         #   [2]: labels
         b_input_ids = batch[0].to(device)
         b_input_mask = batch[1].to(device)
-        b_labels = batch[2].to(device)
+        b_labels_s = batch[2].to(device)
+        b_labels_c = batch[3].to(device)
+        b_labels_u = batch[4].to(device)
 
         # Always clear any previously calculated gradients before performing a
         # backward pass. PyTorch doesn't do this automatically because
@@ -246,9 +321,8 @@ for epoch_i in range(0, epochs):
         # The documentation for this `model` function is here:
         # https://huggingface.co/transformers/v2.2.0/model_doc/bert.html#transformers.BertForSequenceClassification
         outputs = model(b_input_ids,
-
                         attention_mask=b_input_mask,
-                        labels=b_labels)
+                        labels_s=b_labels_s, labels_c=b_labels_c, labels_u=b_labels_u)
 
         # The call to `model` always returns a tuple, so we need to pull the
         # loss value out of the tuple.
@@ -302,13 +376,11 @@ for epoch_i in range(0, epochs):
     model.eval()
 
     # Tracking variables
-    eval_loss, eval_accuracy = 0, 0
+    eval_loss, eval_accuracy_s, eval_accuracy_c, eval_accuracy_u = 0, 0, 0, 0
     nb_eval_steps, nb_eval_examples = 0, 0
 
     logits_list = []
     labels_list = []
-
-
 
     # Evaluate data for one epoch
     for batch in validation_dataloader:
@@ -316,7 +388,7 @@ for epoch_i in range(0, epochs):
         batch = tuple(t.to(device) for t in batch)
 
         # Unpack the inputs from our dataloader
-        b_input_ids, b_input_mask, b_labels = batch
+        b_input_ids, b_input_mask, b_labels_s,b_labels_c, b_labels_u = batch
 
         # Telling the model not to compute or store gradients, saving memory and
         # speeding up validation
@@ -333,46 +405,59 @@ for epoch_i in range(0, epochs):
 
         # Get the "logits" output by the model. The "logits" are the output
         # values prior to applying an activation function like the softmax.
-        logits = outputs[0]
-
+        logits_s = outputs[0]
+        logits_c = outputs[1]
+        logits_u = outputs[2]
         # Move logits and labels to CPU
-        logits = logits.detach().cpu().numpy()
-        label_ids = b_labels.to('cpu').numpy()
+        logits_s = logits_s.detach().cpu().numpy()
+        label_ids_s = b_labels_s.to('cpu').numpy()
 
+        logits_c = logits_c.detach().cpu().numpy()
+        label_ids_c = b_labels_c.to('cpu').numpy()
 
+        logits_u = logits_u.detach().cpu().numpy()
+        label_ids_u = b_labels_u.to('cpu').numpy()
 
         # Calculate the accuracy for this batch of test sentences.
-        tmp_eval_accuracy = flat_accuracy(logits, label_ids)
+        tmp_eval_accuracy_s = flat_accuracy(logits_s, label_ids_s)
+        tmp_eval_accuracy_c = flat_accuracy(logits_c, label_ids_c)
+        tmp_eval_accuracy_u = flat_accuracy(logits_u, label_ids_u)
 
         # Accumulate the total accuracy.
-        eval_accuracy += tmp_eval_accuracy
+        eval_accuracy_s += tmp_eval_accuracy_s
+        eval_accuracy_c += tmp_eval_accuracy_c
+        eval_accuracy_u += tmp_eval_accuracy_u
 
         # Track the number of batches
         nb_eval_steps += 1
 
-        logits_list += list(np.argmax(logits, axis=1).flatten())
-        labels_list += list(label_ids)
+        logits_list += list(np.argmax(logits_s, axis=1).flatten()) + list(np.argmax(logits_c, axis=1).flatten()) + list(np.argmax(logits_u, axis=1).flatten())
+        labels_list += list(label_ids_s)+list(label_ids_c)+list(label_ids_u)
 
         # Report the final accuracy for this validation run.
-    print("  Accuracy: {0:.2f}".format(eval_accuracy / nb_eval_steps))
+    print("  Accuracy_s: {0:.2f}".format(eval_accuracy_s / nb_eval_steps))
+    print("  Accuracy_c: {0:.2f}".format(eval_accuracy_c / nb_eval_steps))
+    print("  Accuracy_u: {0:.2f}".format(eval_accuracy_u / nb_eval_steps))
     print("  Validation took: {:}".format(format_time(time.time() - t0)))
     prec, recall, fscore, _ = precision_recall_fscore_support(labels_list, logits_list, average='binary')
 
     records["curr_epoch"].append(epoch_i)
     records["train_loss"].append(avg_train_loss)
-    records["val_acc"].append(eval_accuracy / nb_eval_steps)
+    records["val_acc_s"].append(eval_accuracy_s / nb_eval_steps)
+    records["val_acc_c"].append(eval_accuracy_c / nb_eval_steps)
+    records["val_acc_u"].append(eval_accuracy_u / nb_eval_steps)
     records["prec"].append(prec)
     records["recall"].append(recall)
     records["fscore"].append(fscore)
 
     if epoch_i == 0:
-        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_"+args.target+".csv", stats_dict=records, current_epoch=epoch_i, continue_from_mode=False)
+        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target + ".csv",
+                        stats_dict=records, current_epoch=epoch_i, continue_from_mode=False)
     else:
-        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target+ ".csv",
+        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target + ".csv",
                         stats_dict=records, current_epoch=epoch_i, continue_from_mode=True)
 
     output_dir = './model_save/'
-
 
     if fscore >= fscore_check:
         fscore_check = fscore
@@ -396,18 +481,15 @@ for epoch_i in range(0, epochs):
 
         # Save a trained model, configuration and tokenizer using `save_pretrained()`.
         # They can then be reloaded using `from_pretrained()`
-        model_to_save = model.module if hasattr(model, 'module') else model  # Take care of distributed/parallel training
+        model_to_save = model.module if hasattr(model,
+                                                'module') else model  # Take care of distributed/parallel training
         model_to_save.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
 
 print("")
 print("Training complete!")
 
-
-
-
 # Saving best-practices: if you use defaults names for the model, you can reload it using from_pretrained()
-
 
 
 # Good practice: save your training arguments together with the trained model
