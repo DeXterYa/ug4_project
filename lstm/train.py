@@ -31,10 +31,12 @@ if torch.cuda.is_available():
 if args.update_emb is False:
     print("Do not update embedding vectors")
 
-config = DistilBertConfig.from_json_file('./distiledubert/config.json')
-bert_model = DistilBertModel.from_pretrained('./distiledubert/pytorch_model.bin', config=config)
+model_path = args.model
 
-tokenizer = DistilBertTokenizer.from_pretrained('./distiledubert/vocab.txt')
+config = DistilBertConfig.from_json_file('../transformer_train/model_save/DistilBert_'+model_path+'/config.json')
+bert_model = DistilBertModel.from_pretrained('../transformer_train/model_save/DistilBert_'+model_path+'/pytorch_model.bin', config=config)
+
+tokenizer = DistilBertTokenizer.from_pretrained('../transformer_train/model_save/DistilBert_'+model_path+'/vocab.txt')
 
 
 
@@ -212,10 +214,10 @@ bert_model.cuda()
 
 records = { "curr_epoch": [], "train_loss": [], "val_loss": [], "prec": [], "recall": [],"fscore": []}
 
-experiment_logs = './logs/edubertpctime/'
+experiment_logs = './logs/'+args.result_name+'/'
+if not os.path.exists('logs'):
+    os.mkdir('logs')
 if not os.path.exists(experiment_logs):
-    if not os.path.exists('logs'):
-        os.mkdir('logs')
     os.mkdir(experiment_logs)
 
 best_performance = 0.0
@@ -290,9 +292,9 @@ for epoch in range(1, num_epochs + 1):
     records["recall"].append(recall)
     records["fscore"].append(fscore)
     if epoch == 1:
-        save_statistics(experiment_log_dir='./logs/edubertpctime/', filename=args.dataset_name+"_"+str(args.seed)+".csv", stats_dict=records, current_epoch=epoch, continue_from_mode=False)
+        save_statistics(experiment_log_dir=experiment_logs, filename=args.dataset_name+"_"+str(args.seed)+".csv", stats_dict=records, current_epoch=epoch, continue_from_mode=False)
     else:
-        save_statistics(experiment_log_dir='./logs/edubertpctime/', filename=args.dataset_name + "_" + str(args.seed) + ".csv",
+        save_statistics(experiment_log_dir=experiment_logs, filename=args.dataset_name + "_" + str(args.seed) + ".csv",
                         stats_dict=records, current_epoch=epoch, continue_from_mode=True)
     num_cudaval += problem
     if fscore > best_performance:

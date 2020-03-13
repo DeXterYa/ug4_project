@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument('--dataset_name', type=str, help='Dataset on which the system will train/eval our model')
     parser.add_argument('--seed', nargs="?", type=int, default=7112018,
                         help='Seed to use for random number generator for experiment')
-
+    parser.add_argument('--model', type=str, help='Dataset on which the system will train/eval our model')
     parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float,
                         metavar='LR', help='initial learning rate')
     parser.add_argument('--dropout',  default=0.4, type=float,
