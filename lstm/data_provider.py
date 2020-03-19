@@ -71,6 +71,7 @@ def data_provider(name):
     elif name == 'cri':
         threads = []
         labels = []
+        groups = []
         features = None
 
         for i in range(1, 4):
@@ -91,6 +92,7 @@ def data_provider(name):
     elif name == 'edi':
         threads = []
         labels = []
+        groups = []
         features = None
         for i in range(1, 3):
             post = pd.read_csv('./data/edi_' + str(i) + '/post.csv')
@@ -114,6 +116,7 @@ def data_provider(name):
     elif name == 'phi':
         threads = []
         labels = []
+        groups = []
         features = None
         for i in range(1, 5):
             post = pd.read_csv('./data/phi_' + str(i) + '/post.csv')

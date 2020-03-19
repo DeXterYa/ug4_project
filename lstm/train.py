@@ -33,7 +33,7 @@ if args.update_emb is False:
 
 model_path = args.model
 
-download = './distiledubert'
+download = '/home/dexter/Downloads/distiledubert'
 config = DistilBertConfig.from_json_file(download+'/config.json')
 bert_model = DistilBertModel.from_pretrained(download+'/pytorch_model.bin', config=config)
 
@@ -85,7 +85,9 @@ for thread in threads:
 
 
 # Extract features which are useful
-X = features.as_matrix(columns=features.columns[2:])
+X = features.to_numpy()[:,2:]
+print(X)
+# X = features.as_matrix(columns=features.columns[2:])
 t = [ 0,1,5,7,8,14,15]
 X = X[:, t]
 a = X[:, 2]
