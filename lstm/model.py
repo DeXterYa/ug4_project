@@ -49,6 +49,7 @@ class Model(nn.Module):
         # Compute attention, the output is tensors representing contexts
         self.attn = Attn(self.hidden)
         # input is each context
+        self.lstm1 = nn.LSTM(input_size=self.hidden, hidden_size=self.hidden, num_layers=2, dropout=0.2, bidirectional=False)
         self.lstm2 = nn.LSTM(input_size=self.hidden, hidden_size=self.hidden, num_layers=2, dropout=0.2, bidirectional=False)
         self.dropout = nn.Dropout(args['dropout'])
         # fully connected layer
@@ -57,16 +58,26 @@ class Model(nn.Module):
     #         with torch.no_grad():
     #             self.linear.weight.copy_(your_new_weights)
 
-    def forward(self, x, extra):
-        post_vectors = torch.tanh(self.fc(x))
-        post_vectors = post_vectors.unsqueeze(1)  # (N,1,H)
+    def forward(self, x, extra, groups):
 
-        context_representations, _ = self.lstm2(post_vectors)  # (N,1,H) different context representation
+        post_vectors = self.fc(x)
+        if len(groups) == 0:
+            out, _ = self.lstm1(post_vectors.unsqueeze(1))
+            pc_vectors = out[-1].squeeze(1)
+        else:
+            pc_vectors = torch.zeros((len(groups),post_vectors.size(1))).cuda()
+            for idx, group in enumerate(groups):
+                out, _ = self.lstm1(post_vectors[group[0]:group[1], :].unsqueeze(1))
+                pc_vectors[idx,:] = out[-1].squeeze(1)
+
+        pc_vectors = pc_vectors.unsqueeze(1)  # (N,1,H)
+
+        context_representations, _ = self.lstm2(pc_vectors)  # (N,1,H) different context representation
 
         # attn_weights = self.attn(post_vectors[-1],context_representations[0:-1])
         # attended_context_representation = attn_weights.bmm(context_representations[0:-1].transpose(0,1))
 
-        attn_weights = self.attn(post_vectors[-1],
+        attn_weights = self.attn(pc_vectors[-1],
                                  context_representations)  # Use last context as the query to compute weights
         # Use weights to determine the final context representation
         attended_context_representation = attn_weights.bmm(

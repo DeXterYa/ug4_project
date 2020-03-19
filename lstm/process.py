@@ -122,14 +122,28 @@ def get_sequences(posts, tokenizer):
 
 def generate(thread_data_useful, post_data, comment_data):
     threads = []
+    records = []
 
     for idx in thread_data_useful['id'].values:
         thread = thread_data_useful.loc[thread_data_useful['id'] == idx]
         if thread['instructor_replied'].values == 0:
-            posts = post_data.loc[post_data['thread_id'] == idx][['post_time', 'post_text']]
-            comments = comment_data.loc[comment_data['thread_id'] == idx][['post_time', 'comment_text']]
-            p_and_c = pd.concat([posts, comments.rename(columns={'comment_text':'post_text'})], axis=0, ignore_index=True).sort_values(by=['post_time'])[
-                'post_text'].values.tolist()
+            posts = post_data.loc[post_data['thread_id'] == idx].sort_values(by=['post_time'])[['id','post_text']]
+            comments = comment_data.loc[comment_data['thread_id'] == idx][['post_id', 'post_time', 'comment_text']]
+            postcomment = []
+            record = []
+
+            for index, row in posts.iterrows():
+                if (comments['post_id'] == row['id']).any():
+                    com = comments.loc[comments['post_id'] == row['id']].sort_values(by=['post_time'])
+                    r1 = len(postcomment)
+                    postcomment += [row['post_text']]
+                    postcomment += com['comment_text'].tolist()
+                    r2 = len(postcomment)
+                    record.append([r1,r2])
+                else:
+                    r1 = len(postcomment)
+                    record.append([r1, r1 + 1])
+                    postcomment += [row['post_text']]
 
         else:
             posts = post_data.loc[post_data['thread_id'] == idx]
@@ -137,12 +151,25 @@ def generate(thread_data_useful, post_data, comment_data):
             time_list = list(posts.loc[posts['forum_title'] != 'Student']['post_time']) + list(
                 comments.loc[comments['forum_title'] != 'Student']['post_time'])
             time_list.sort()
-            posts = posts.loc[posts['post_time'] < time_list[0]][['post_time', 'post_text']]
-            comments = comments.loc[comments['post_time'] < time_list[0]][['post_time', 'comment_text']]
-            p_and_c = pd.concat([posts, comments.rename(columns={'comment_text': 'post_text'})], axis=0,
-                                ignore_index=True).sort_values(by=['post_time'])[
-                'post_text'].values.tolist()
-        threads.append(p_and_c)
+            posts = posts.loc[posts['post_time'] < time_list[0]].sort_values(by=['post_time'])[['id','post_text']]
+            comments = comments.loc[comments['post_time'] < time_list[0]][['post_id', 'post_time', 'comment_text']]
+            postcomment = []
+            record = []
+
+            for index, row in posts.iterrows():
+                if (comments['post_id'] == row['id']).any():
+                    com = comments.loc[comments['post_id'] == row['id']].sort_values(by=['post_time'])
+                    r1 = len(postcomment)
+                    postcomment += [row['post_text']]
+                    postcomment += com['comment_text'].tolist()
+                    r2 = len(postcomment)
+                    record.append([r1,r2])
+                else:
+                    r1 = len(postcomment)
+                    record.append([r1,r1+1])
+                    postcomment += [row['post_text']]
+        threads.append(postcomment)
+        records.append(record)
 
     labels = thread_data_useful['instructor_replied'].values.tolist()
 
@@ -153,7 +180,7 @@ def generate(thread_data_useful, post_data, comment_data):
                  'sum_problems', 'sum_thanks', 'sum_requests', 'sum_transition', 'thread_txt', 'intervene']
     code_thread_X = pd.DataFrame(columns=col_names)
     create(thread_data_useful, post_data, comment_data, code_thread_X, 'code')
-    return threads, labels, code_thread_X
+    return threads, records, labels, code_thread_X
 
 
 def create(thread_data_useful, post_data, comment_data, thread_X, name):

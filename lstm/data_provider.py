@@ -7,23 +7,24 @@ def data_provider(name):
         post = pd.read_csv('./data/code/post.csv')
         comment = pd.read_csv('./data/code/comment.csv')
         thread = pd.read_csv('./data/code/thread.csv')
-        threads, labels, features = generate(thread, post, comment)
+        threads, groups, labels, features = generate(thread, post, comment)
 
     elif name == 'ani':
         post_1 = pd.read_csv('./data/ani_1/post.csv')
         comment_1 = pd.read_csv('./data/ani_1/comment.csv')
         thread_1 = pd.read_csv('./data/ani_1/thread.csv')
 
-        threads_1, labels_1, features_1 = generate(thread_1, post_1, comment_1)
+        threads_1, groups_1, labels_1, features_1 = generate(thread_1, post_1, comment_1)
 
         post_2 = pd.read_csv('./data/ani_2/post.csv')
         comment_2 = pd.read_csv('./data/ani_2/comment.csv')
         thread_2 = pd.read_csv('./data/ani_2/thread.csv')
 
-        threads_2, labels_2, features_2 = generate(thread_2, post_2, comment_2)
+        threads_2, groups_2, labels_2, features_2 = generate(thread_2, post_2, comment_2)
 
         threads = threads_1 + threads_2
         labels = labels_1 + labels_2
+        groups = groups_1 + groups_2
         features = pd.concat([features_1, features_2], axis=0)
 
     elif name == 'astro':
@@ -35,11 +36,12 @@ def data_provider(name):
         comment_2 = pd.read_csv('./data/astro_2/comment.csv')
         thread_2 = pd.read_csv('./data/astro_2/thread.csv')
 
-        threads_1, labels_1, features_1 = generate(thread_1, post_1, comment_1)
-        threads_2, labels_2, features_2 = generate(thread_2, post_2, comment_2)
+        threads_1, groups_1, labels_1, features_1 = generate(thread_1, post_1, comment_1)
+        threads_2, groups_2, labels_2, features_2 = generate(thread_2, post_2, comment_2)
 
         threads = threads_1 + threads_2
         labels = labels_1 + labels_2
+        groups = groups_1 +groups_2
         features = pd.concat([features_1, features_2], axis=0)
 
     elif name == 'chi':
@@ -47,7 +49,7 @@ def data_provider(name):
         comment = pd.read_csv('./data/chi/comment.csv')
         thread = pd.read_csv('./data/chi/thread.csv')
 
-        threads, labels, features = generate(thread, post, comment)
+        threads, groups, labels, features = generate(thread, post, comment)
 
     elif name == 'cli':
         post_1 = pd.read_csv('./data/cli_1/post.csv')
@@ -58,11 +60,12 @@ def data_provider(name):
         comment_2 = pd.read_csv('./data/cli_2/comment.csv')
         thread_2 = pd.read_csv('./data/cli_2/thread.csv')
 
-        threads_1, labels_1, features_1 = generate(thread_1, post_1, comment_1)
-        threads_2, labels_2, features_2 = generate(thread_2, post_2, comment_2)
+        threads_1, groups_1, labels_1, features_1 = generate(thread_1, post_1, comment_1)
+        threads_2, groups_2, labels_2, features_2 = generate(thread_2, post_2, comment_2)
 
         threads = threads_1 + threads_2
         labels = labels_1 + labels_2
+        groups = groups_1 + groups_2
         features = pd.concat([features_1, features_2], axis=0)
 
     elif name == 'cri':
@@ -75,9 +78,10 @@ def data_provider(name):
             comment = pd.read_csv('./data/cri_' + str(i) + '/comment.csv')
             thread = pd.read_csv('./data/cri_' + str(i) + '/thread.csv')
 
-            threads_1, labels_1, features_1 = generate(thread, post, comment)
+            threads_1, groups_1, labels_1, features_1 = generate(thread, post, comment)
             threads = threads + threads_1
             labels = labels + labels_1
+            groups = groups + groups_1
             if i == 1:
                 features = features_1
             else:
@@ -92,9 +96,10 @@ def data_provider(name):
             post = pd.read_csv('./data/edi_' + str(i) + '/post.csv')
             comment = pd.read_csv('./data/edi_' + str(i) + '/comment.csv')
             thread = pd.read_csv('./data/edi_' + str(i) + '/thread.csv')
-            threads_1, labels_1, features_1 = generate(thread, post, comment)
+            threads_1, groups_1, labels_1, features_1 = generate(thread, post, comment)
             threads = threads + threads_1
             labels = labels + labels_1
+            groups = groups + groups_1
             if i == 1:
                 features = features_1
             else:
@@ -104,7 +109,7 @@ def data_provider(name):
         post = pd.read_csv('./data/music/post.csv')
         comment = pd.read_csv('./data/music/comment.csv')
         thread = pd.read_csv('./data/music/thread.csv')
-        threads, labels, features = generate(thread, post, comment)
+        threads, groups, labels, features = generate(thread, post, comment)
 
     elif name == 'phi':
         threads = []
@@ -115,12 +120,13 @@ def data_provider(name):
             comment = pd.read_csv('./data/phi_' + str(i) + '/comment.csv')
             thread = pd.read_csv('./data/phi_' + str(i) + '/thread.csv')
 
-            threads_1, labels_1, features_1 = generate(thread, post, comment)
+            threads_1, groups_1, labels_1, features_1 = generate(thread, post, comment)
             threads = threads + threads_1
             labels = labels + labels_1
+            groups = groups + groups_1
             if i == 1:
                 features = features_1
             else:
                 features = pd.concat([features, features_1], axis=0)
 
-    return threads, labels, features
+    return threads, groups, labels, features

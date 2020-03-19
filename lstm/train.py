@@ -33,10 +33,11 @@ if args.update_emb is False:
 
 model_path = args.model
 
-config = DistilBertConfig.from_json_file('../transformer_train/model_save/DistilBert_'+model_path+'/config.json')
-bert_model = DistilBertModel.from_pretrained('../transformer_train/model_save/DistilBert_'+model_path+'/pytorch_model.bin', config=config)
+download = './distiledubert'
+config = DistilBertConfig.from_json_file(download+'/config.json')
+bert_model = DistilBertModel.from_pretrained(download+'/pytorch_model.bin', config=config)
 
-tokenizer = DistilBertTokenizer.from_pretrained('../transformer_train/model_save/DistilBert_'+model_path+'/vocab.txt')
+tokenizer = DistilBertTokenizer.from_pretrained(download+'/vocab.txt')
 
 
 
@@ -63,7 +64,7 @@ lstm = lstm.cuda()
 
 optimizer = torch.optim.Adam(lstm.parameters(), lr=LEARNING_RATE)
 
-threads, labels, features = data_provider(args.dataset_name)
+threads, groups, labels, features = data_provider(args.dataset_name)
 for i, thread in enumerate(threads):
     threads[i] = get_sequences(thread, tokenizer)
 
@@ -100,6 +101,7 @@ X_tv = X[idx,:]
 threads_tv = list( threads[i] for i in idx )
 attention_masks_tv = list( attention_masks[i] for i in idx)
 labels_tv = list( labels[i] for i in idx )
+groups_tv = list(groups[i] for i in idx)
 
 # Data for training
 num_train = num_tv -(len(threads) - num_tv)
@@ -109,6 +111,8 @@ X_train = torch.from_numpy(X_train.astype('float64')).float().cuda()
 threads_train = list( threads_tv[i] for i in train_idx )
 labels_train = list( labels_tv[i] for i in train_idx )
 attention_masks_train = list(attention_masks_tv[i] for i in train_idx)
+groups_train = list(groups_tv[i] for i in train_idx)
+# groups_train = torch.from_numpy(groups_train.astype('int')).float().cuda()
 
 y_train = labels_train
 
@@ -119,6 +123,7 @@ valid_idx = [i for i in range(num_train, num_tv)]
 threads_valid = list( threads_tv[i] for i in valid_idx )
 labels_valid = list( labels_tv[i] for i in valid_idx )
 attention_masks_valid = list( attention_masks_tv[i] for i in valid_idx )
+groups_valid = list(groups_tv[i] for i in valid_idx )
 
 
 # Calculate class ratio
@@ -156,25 +161,14 @@ def evaluation():
         attention_masks_valid_thread = torch.tensor(attention_masks_valid[thread_idx]).cuda()
 
         try:
-            # times = inp.size(0) // 10
-            # remainder = inp.size(0) % 10
-            # count = 0
-            # bert_output = torch.zeros([inp.size(0), 768]).detach().cuda()
-            # while count < times:
-            #     bert_output_temp = bert_model(inp[10 * count:10 * (count + 1)],
-            #                                   attention_mask=attention_masks_valid_thread[
-            #                                                  10 * count:10 * (count + 1)])[0][:, 0, :]
-            #     bert_output[10 * count:10 * (count + 1)] = bert_output_temp
-            #     del bert_output_temp
-            #     torch.cuda.empty_cache()
-            #     count += 1
 
             bert_output = bert_model(inp, attention_mask=attention_masks_valid_thread)[0][:, 0, :]
 
-
+            g = torch.LongTensor(groups_valid[thread_idx]).cuda()
 
             # Forward pass
-            output = lstm(bert_output, X_valid[thread_idx])
+            # print(groups_valid[thread_idx])
+            output = lstm(bert_output, X_valid[thread_idx], g)
             targets = [labels_valid[thread_idx]]
             targets_tensor = torch.FloatTensor(targets).view(1, -1)
             target = Variable(targets_tensor, requires_grad=False).cuda()
@@ -248,23 +242,16 @@ for epoch in range(1, num_epochs + 1):
         attention_masks_train_thread = torch.tensor(attention_masks_train[thread_idx]).cuda()
 
         try:
-            # times = inp.size(0)//10
-            # remainder = inp.size(0)%10
-            # count = 0
-            # bert_output = torch.zeros([inp.size(0), 768]).detach().cuda()
-            # while count < times:
-            #     bert_output_temp = bert_model(inp[10*count:10*(count+1)], attention_mask=attention_masks_train_thread[10*count:10*(count+1)])[0][:,0,:]
-            #     bert_output[10*count:10*(count+1)]= bert_output_temp
-            #     del bert_output_temp
-            #     torch.cuda.empty_cache()
-            #     count += 1
+
 
             bert_output = bert_model(inp, attention_mask=attention_masks_train_thread)[0][:,0,:]
-
+            # print('thread',word_idxs)
+            # print(groups_train[thread_idx])
+            g = torch.LongTensor(groups_train[thread_idx]).cuda()
 
 
             # Forward pass
-            output = lstm(bert_output, X_train[thread_idx])
+            output = lstm(bert_output, X_train[thread_idx],g)
 
             loss = criterion(output, target)
 
@@ -274,7 +261,7 @@ for epoch in range(1, num_epochs + 1):
             loss.backward()
             optimizer.step()
             loss_items.append(loss.item())
-            del bert_output, output, loss, inp, target, attention_masks_train_thread
+            del bert_output, output, loss, inp, target, attention_masks_train_thread, g
         except:
             print("cuda problem")
             num_cudatrain += 1
