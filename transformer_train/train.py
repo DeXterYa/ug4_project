@@ -208,6 +208,10 @@ model = Model.from_pretrained(
     output_hidden_states = False, # Whether the model returns all hidden-states.
 )
 
+if args.freeze_embeddings == 1:
+    for param in list(model.distilbert.embeddings.parameters()):
+        param.requires_grad = False
+        print ("Froze Embedding Layer")
 # Tell pytorch to run this model on the GPU.
 model.cuda()
 
@@ -451,10 +455,10 @@ for epoch_i in range(0, epochs):
     records["fscore"].append(fscore)
 
     if epoch_i == 0:
-        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target + ".csv",
+        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target + args.addname +".csv",
                         stats_dict=records, current_epoch=epoch_i, continue_from_mode=False)
     else:
-        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target + ".csv",
+        save_statistics(experiment_log_dir=experiment_logs, filename="DistilBert_" + args.target + args.addname + ".csv",
                         stats_dict=records, current_epoch=epoch_i, continue_from_mode=True)
 
     output_dir = './model_save/'
@@ -469,7 +473,7 @@ for epoch_i in range(0, epochs):
             except:
                 print('dir 1 exists')
 
-        output_dir = './model_save/' + 'DistilBert_' + args.target + '/'
+        output_dir = './model_save/' + 'DistilBert_' + args.target + args.addname +'/'
 
         if not os.path.exists(output_dir):
             try:

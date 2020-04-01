@@ -37,4 +37,5 @@ source /home/${STUDENT_ID}/miniconda3/bin/activate mlp
 pwd
 
 
-python train.py --batch_size 4 --num_epochs 10 --experiment_name "edudistilbert_traincomb" --target "combination"
+python train.py --batch_size 4 --num_epochs 10 --experiment_name "edudistilbert_traincomb_forzenemb" --target "combination" \
+                --freeze_embeddings 1 --addname "forzenemb"

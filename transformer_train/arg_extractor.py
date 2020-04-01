@@ -33,7 +33,10 @@ def get_args():
     # parser.add_argument('--dropout',  default=0.4, type=float,
     #                     help='dropout rate')
     parser.add_argument('--num_epochs', nargs="?", type=int, default=5, help='The experiment\'s epoch budget')
+    parser.add_argument('--freeze_embeddings', nargs="?", type=int, default=0, help='The experiment\'s epoch budget')
     # parser.add_argument('--num_hidden', nargs="?", type=int, default=128)
+    parser.add_argument('--addname', nargs="?", type=str, default="forzen",
+                        help='Experiment name - to be used for building the experiment folder')
     parser.add_argument('--experiment_name', nargs="?", type=str, default="exp_1",
                         help='Experiment name - to be used for building the experiment folder')
     # parser.add_argument('--stopwords', nargs="?", type=str2bool, default=True,
