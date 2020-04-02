@@ -136,8 +136,8 @@ def generate(thread_data_useful, post_data, comment_data):
                 if (comments['post_id'] == row['id']).any():
                     com = comments.loc[comments['post_id'] == row['id']].sort_values(by=['post_time'])
                     r1 = len(postcomment)
-                    postcomment += [row['post_text']]
                     postcomment += com['comment_text'].tolist()
+                    postcomment += [row['post_text']] # I swapped these two
                     r2 = len(postcomment)
                     record.append([r1,r2])
                 else:
@@ -160,8 +160,8 @@ def generate(thread_data_useful, post_data, comment_data):
                 if (comments['post_id'] == row['id']).any():
                     com = comments.loc[comments['post_id'] == row['id']].sort_values(by=['post_time'])
                     r1 = len(postcomment)
-                    postcomment += [row['post_text']]
                     postcomment += com['comment_text'].tolist()
+                    postcomment += [row['post_text']] # I swapped this two
                     r2 = len(postcomment)
                     record.append([r1,r2])
                 else:
