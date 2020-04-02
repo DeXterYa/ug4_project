@@ -82,7 +82,7 @@ for thread in threads:
 
 
 # Extract features which are useful
-X = features.as_matrix(columns=features.columns[2:])
+X = features.to_numpy()[:,2:]
 t = [ 0,1,5,7,8,14,15]
 X = X[:, t]
 a = X[:, 2]
