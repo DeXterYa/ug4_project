@@ -33,7 +33,7 @@ if args.update_emb is False:
 
 model_path = args.model
 
-download = './distiledubert'
+download = '../transformer_train/model_save/DistilBert_' + model_path
 config = DistilBertConfig.from_json_file(download+'/config.json')
 bert_model = DistilBertModel.from_pretrained(download+'/pytorch_model.bin', config=config)
 
