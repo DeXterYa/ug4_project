@@ -61,7 +61,7 @@ class Model(nn.Module):
         self.lstm2 = nn.LSTM(input_size=self.hidden, hidden_size=self.hidden, num_layers=2, dropout=0.2, bidirectional=False)
         self.dropout = nn.Dropout(args['dropout'])
         # fully connected layer
-        self.fc1 = nn.Linear(self.hidden+7, 1)
+        self.fc1 = nn.Linear(self.hidden, 1)
 
     #         with torch.no_grad():
     #             self.linear.weight.copy_(your_new_weights)
@@ -88,12 +88,12 @@ class Model(nn.Module):
         # print(attended_context_representation[-1].size())
         # print(post_vectors[-1].size())
         # exit()
-        extra = extra.view(1, -1)
+        # extra = extra.view(1, -1)
 
         output = self.dropout(attended_context_representation[-1]).view(1, -1)
 
-        logits = torch.cat((output, extra), 1)
-
+        # logits = torch.cat((output, extra), 1)
+        logits = output
         logit = self.fc1(logits)  # concatenation and dropout
 
         return logit
