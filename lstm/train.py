@@ -21,7 +21,6 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_recall_fscore_support
 from model import Model
 from numpy.random import default_rng
-from gensim.models import KeyedVectors
 from process import get_sequences, load_obj, save_statistics
 from data_provider import data_provider
 torch.cuda.empty_cache()
@@ -99,7 +98,7 @@ threads, labels, features = data_provider(args.dataset_name)
 
 
 # Extract features which are useful
-X = features.as_matrix(columns=features.columns[2:])
+X = features.to_numpy()[:,2:]
 t = [ 0,1,5,7,8,14,15]
 X = X[:, t]
 a = X[:, 2]
